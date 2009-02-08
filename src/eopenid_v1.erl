@@ -6,8 +6,12 @@
 -module(eopenid_v1).
 
 -export([discover/1
-         ,t/1
         ]).
+
+-ifdef(TEST).
+-export([t/1
+        ]).
+-endif.
 
 -import(eopenid_lib, 
         [new/0
@@ -21,7 +25,6 @@
 
 -include_lib("xmerl/include/xmerl.hrl").
 
-%%-define(TEST, true). % temporary
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
@@ -123,7 +126,11 @@ gelems([E|T], L, S) when is_list(L) ->
                 end, S, L);
 gelems(_, _, S) -> S.
 
+
+
+
 -ifdef(EUNIT).
+
 gelem_test() ->
     ?assertMatch([{<<"link">>,
                    [{<<"rel">>,<<"openid.delegate">>},
@@ -135,7 +142,6 @@ gelem_test() ->
                    []}],
                  t(1)).
 
--endif.
 
 t(1) ->
     gelems([<<"html">>,<<"head">>,<<"link">>], data()).
@@ -175,3 +181,5 @@ data() ->
                [{<<"href">>,<<"http://domerl.tornkvist.org/">>}],
                [<<"A Domerl Example">>]}]}]}]}]}]}.
 
+
+-endif.
