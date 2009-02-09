@@ -6,6 +6,7 @@
 -module(eopenid_v1).
 
 -export([discover/1
+         ,associate/1
         ]).
 
 -ifdef(TEST).
@@ -21,6 +22,7 @@
          ,http_get/1
          ,http_path_norm/1
          ,b2l/1
+         ,i2l/1
         ]).
 
 -include_lib("xmerl/include/xmerl.hrl").
@@ -46,8 +48,31 @@
 -define(elog(Fmt,Args), 
         error_logger:format("~p(~p): "++Fmt, [?MODULE,?LINE|Args])).
 
+-type( dict() :: list() ).
+-type( etype() :: error | exit | throw ).
+-type( error() :: any() ).
 
 
+%%% --------------------------------------------------------------------
+%%% @spec associate( dict() ) -> {ok,dict()} | {Type,Error}.
+%%%
+%%% @doc Performs an OpenID association with the server in the Dict.
+%%%      Returns an orddict() containing the assoc. parameters.
+%%% @end
+%%% --------------------------------------------------------------------
+-spec associate( dict() ) -> {ok,dict()} | {etype(),error()}.
+    
+associate(Dict) ->
+    Mode             = "associate",
+    AssocType        = "HMAC-SHA1",
+    SessionType      = "DH-SHA1",
+    {A,DHa,G,P}      = eopenid_lib:mk_dh(),
+    DH_modulus       = P,
+    DH_gen           = G,
+    DH_consumer_pub  = A,
+    {base64:encode_to_string(i2l(P)),
+     base64:encode_to_string(i2l(G)),
+     base64:encode_to_string(i2l(A))}.
 
 %%% --------------------------------------------------------------------
 %%% @spec discover(ClaimedId :: list()) -> {ok,dict()} | {Type,Error}.
@@ -57,10 +82,6 @@
 %%%      Returns an orddict() containing the discovred parameters.
 %%% @end
 %%% --------------------------------------------------------------------
--type( dict() :: list() ).
--type( etype() :: error | exit | throw ).
--type( error() :: any() ).
-
 -spec discover( string() ) -> {ok,dict()} | {etype(),error()}.
     
 discover(ClaimedId) ->

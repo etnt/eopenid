@@ -16,6 +16,7 @@
          ,foldf/2
          ,add/3
          ,b2l/1
+         ,i2l/1
          ,gen_DHa/0
          ,gen_DHb/0
          ,gen_DHp/0
@@ -87,6 +88,9 @@ end_slash(Path) ->
 
 b2l(B) when is_binary(B) -> binary_to_list(B);
 b2l(L) when is_list(L)   -> L.
+
+i2l(I) when is_integer(I) -> integer_to_list(I);
+i2l(L) when is_list(L)    -> L.
 
 
 %%%
