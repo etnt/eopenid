@@ -18,11 +18,18 @@
         [new/0
          ,in/2
          ,in/3
+         ,out/2
          ,foldf/2
          ,http_get/1
+         ,http_post/4
          ,http_path_norm/1
          ,b2l/1
          ,i2l/1
+         ,urlenc/1
+         ,content_type/0
+         ,implode/2
+         ,b2c/1
+         ,c2b/1
         ]).
 
 -include_lib("xmerl/include/xmerl.hrl").
@@ -67,12 +74,48 @@ associate(Dict) ->
     AssocType        = "HMAC-SHA1",
     SessionType      = "DH-SHA1",
     {A,DHa,G,P}      = eopenid_lib:mk_dh(),
-    DH_modulus       = P,
-    DH_gen           = G,
-    DH_consumer_pub  = A,
-    {base64:encode_to_string(i2l(P)),
-     base64:encode_to_string(i2l(G)),
-     base64:encode_to_string(i2l(A))}.
+    DH_modulus       = base64:encode_to_string(b2c(P)),
+    DH_gen           = base64:encode_to_string(b2c(G)),
+    DH_consumer_pub  = base64:encode_to_string(b2c(A)),
+
+    L = lists:zip(["openid."++K || K <- assoc_keys()],
+                  [AssocType,SessionType,DH_modulus,DH_gen,DH_consumer_pub]),
+
+    Dict1 = lists:foldl(fun({K,V},D) -> in(K,V,D) end, 
+                        foldf([in("a",DHa),
+                               in("A",A),
+                               in("p",P),
+                               in("g",G)
+                               ], Dict), 
+                        L),
+
+    Body = urlenc([{"openid.mode",Mode}|L]),
+    %%Body = mk_body([{"openid.mode",Mode}|L]),
+    ?elog("+++ Body=~p~n",[Body]),
+    Hdrs = [],
+    Provider = out("openid.server", Dict),
+    %%ContentType = "text/plain; charset=UTF-8",
+    ContentType = content_type(), 
+    case http_post(Provider, Hdrs, ContentType, Body) of
+        {ok, {{_,200,_}, Rhdrs, Rbody}} ->
+            Q = [string:tokens(KV,":") || KV <- string:tokens(Rbody, "\n")],
+            {ok, lists:foldl(fun([K,V],D) -> in("openid."++K,V,D) end, 
+                             Dict1, Q)};
+        Else ->
+            {error, Else}
+    end.
+
+assoc_keys() ->
+    ["assoc_type", "session_type", "dh_modulus",
+     "dh_gen", "dh_consumer_public"].
+    
+mk_body(L) ->
+    [K++":"++V++"\n" || {K,V} <- L].
+    
+
+%    <<_:32,Kbin>> = crypto:mpint(K),
+%    crypto:exor
+%    K = out("K",Dict),
 
 %%% --------------------------------------------------------------------
 %%% @spec discover(ClaimedId :: list()) -> {ok,dict()} | {Type,Error}.
@@ -94,7 +137,7 @@ discover(ClaimedId) ->
         {ok, foldf(Fs, new())}
     catch
         _Type:_Error ->
-            ?elog("discover xmerl failed~n", []),
+            ?elog("discover xmerl failed ~n", []),
             try 
                 A = mochiweb_html:parse(Body),
                 %%?elog("A=~p~n",[A]),
@@ -102,7 +145,7 @@ discover(ClaimedId) ->
             catch
                 Type2:Error2 ->
                     %% FIXME try doing the parsing in some other way
-                    ?elog("discover mochiweb failed: ~p, Body=~p~n",
+                    ?elog("discover failed: ~p, Body=~p~n",
                           [erlang:get_stacktrace(),Body]),
                     {Type2, Error2}
             end

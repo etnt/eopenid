@@ -22,6 +22,17 @@
          ,gen_DHp/0
          ,gen_DHg/0
          ,mk_dh/0
+         ,urlenc/1
+         ,parseq/1
+         ,content_type/0
+         ,implode/2
+         ,b2c/1
+         ,c2b/1
+         ,decrypt_mac_key/1
+         ,encrypt_mac_key/1
+         ,verify_mac_key/1
+         ,compute_k/1
+         ,compute_b/1
         ]).
 
 
@@ -85,6 +96,44 @@ end_slash(Path) ->
         Rev    -> lists:reverse([$/|Rev])
     end.
 
+%%% btwoc() in Spec
+b2c(N) when is_integer(N) ->
+    Bin  = crypto:mpint(N),
+    Size = size(Bin),
+    <<Size:32, Bin/binary>>.
+
+%%% The inverse to btwoc()
+c2b(Bin) when is_binary(Bin) ->
+    Size = size(Bin),
+    crypto:erlint(<<Size:32, Bin/binary>>).
+
+
+decrypt_mac_key(Dict) ->
+    EncMacKey = out("openid.enc_mac_key",Dict),
+    base64:decode(EncMacKey).
+
+encrypt_mac_key(Dict) ->
+    <<_:32,Kb/binary>> = b2c(out("K",Dict)),
+    crypto:exor(crypto:sha_mac(Kb), Kb).
+
+verify_mac_key(Dict) ->
+    D = compute_k(compute_b(Dict)),
+    {decrypt_mac_key(D), encrypt_mac_key(D)}.
+
+compute_k(Dict) ->
+    B   = out("B",Dict),
+    DHa = out("a",Dict),
+    P   = out("p",Dict),
+    K   = crypto:mod_exp(B,DHa,P),
+    in("K",K,Dict).
+
+compute_b(Dict) ->
+    C = base64:decode(out("openid.dh_server_public",Dict)),
+    Size = size(C),
+    in("B", crypto:erlint(<<Size:32,C/binary>>), Dict).
+    
+
+    
 
 b2l(B) when is_binary(B) -> binary_to_list(B);
 b2l(L) when is_list(L)   -> L.
@@ -92,6 +141,12 @@ b2l(L) when is_list(L)   -> L.
 i2l(I) when is_integer(I) -> integer_to_list(I);
 i2l(L) when is_list(L)    -> L.
 
+urlenc(X) -> mochiweb_util:urlencode(X).
+parseq(X) -> mochiweb_util:parse_qs(X).
+
+content_type() -> 
+    "application/x-www-form-urlencoded; charset=UTF-8".
+    
 
 %%%
 %%% http://blog.diginux.net/2006/11/15/adding-aes-encryption-to-erlang-chat/
@@ -144,3 +199,5 @@ p() ->
 %%% 2680186779371140946069037367882924481890279803204930827121754220815926662427921632082164526298218063708806403044343777863750108681745997252113244260112303007432673298935000286117061767177828213646738712947513030779601431300311893791839068275142763720433026054072614543357686345603964348527688543335284385690
 
 
+implode(Data, Seperator) when is_list(Data) andalso is_list(Seperator) ->
+    lists:foldr(fun(X,[]) -> X; (X,Acc) -> X++Seperator++Acc end, "", Data).
