@@ -7,6 +7,7 @@
 
 -export([discover/1
          ,associate/1
+         ,checkid_setup/1
         ]).
 
 -ifdef(TEST).
@@ -58,6 +59,31 @@
 -type( dict() :: list() ).
 -type( etype() :: error | exit | throw ).
 -type( error() :: any() ).
+
+
+%%% --------------------------------------------------------------------
+%%% @spec checkid_setup( dict() ) -> {ok,string()} | {Type,Error}.
+%%%
+%%% @doc Ask the IP if an end user owns the Claimed ID.
+%%%      Returns an URL that the end user should be redirected to.
+%%% @end
+%%% --------------------------------------------------------------------
+-spec checkid_setup( dict() ) -> {ok,string()} | {etype(),error()}.
+    
+checkid_setup(Dict) ->
+    Mode             = "checkid_setup",
+    Identity         = claimed_id(Dict),
+    AssocHandle      = out("openid.assoc_handle", Dict),
+    ReturnTo         = "http://www.tornkvist.org/openid", % out("openid.return_to", Dict),
+    TrustRoot        = "http://www.tornkvist.org/", % out("openid.trust_root", Dict),
+
+    {ok, 'TBD: return a URL that the customer shall be redirected to'}.
+
+claimed_id(Dict) ->
+    try out("openid.delegate", Dict)
+    catch _:_ -> out("openid.claimed_id", Dict)
+    end.
+            
 
 
 %%% --------------------------------------------------------------------
@@ -122,26 +148,27 @@ mk_body(L) ->
 %%%
 %%% @doc Performs an OpenID discovery to find out the the 
 %%%      provider and the (optional) delegated ID.
-%%%      Returns an orddict() containing the discovred parameters.
+%%%      Returns an updated Dict.
 %%% @end
 %%% --------------------------------------------------------------------
 -spec discover( string() ) -> {ok,dict()} | {etype(),error()}.
     
-discover(ClaimedId) ->
+discover(ClaimedId) when is_list(ClaimedId) ->
     NormId = http_path_norm(ClaimedId),
     {ok, {_Rc, _Hdrs, Body}} = http_get(NormId),
+    Dict = in("openid.claimed_id", ClaimedId, new()),
     try
         {Xml,_} = xmerl_scan:string(Body),
         L = [?XAttrs(X) || X <- xmerl_xpath:string("//link", Xml)],
         Fs = [in(K,V) || [{rel,K},{href,V}] <- L],
-        {ok, foldf(Fs, new())}
+        {ok, foldf(Fs, Dict)}
     catch
         _Type:_Error ->
             ?elog("discover xmerl failed ~n", []),
             try 
                 A = mochiweb_html:parse(Body),
                 %%?elog("A=~p~n",[A]),
-                {ok, hvals(gelems([<<"html">>,<<"head">>,<<"link">>], A))}
+                {ok, hvals(Dict, gelems([<<"html">>,<<"head">>,<<"link">>], A))}
             catch
                 Type2:Error2 ->
                     %% FIXME try doing the parsing in some other way
