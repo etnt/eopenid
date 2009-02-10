@@ -6,12 +6,16 @@
 -module(eopenid_v1).
 
 -export([discover/1
+         ,discover/2
          ,associate/1
          ,checkid_setup/1
+         ,verify_signed_keys/2
         ]).
 
 -ifdef(TEST).
 -export([t/1
+         ,all/0
+         ,all/1
         ]).
 -endif.
 
@@ -27,10 +31,14 @@
          ,b2l/1
          ,i2l/1
          ,urlenc/1
+         ,parseq/1
          ,content_type/0
          ,implode/2
          ,roll/1
          ,unroll/1
+         ,compute_K/1
+         ,compute_B/1
+         ,decrypt_mac_key/1
         ]).
 
 -include_lib("xmerl/include/xmerl.hrl").
@@ -60,6 +68,63 @@
 -type( etype() :: error | exit | throw ).
 -type( error() :: any() ).
 
+%%%
+%%% --- TEST ---
+%%%
+%%% Does DISCOVER, ASSOCIATE and returns the Url to be used for CHECKID_SETUP.
+%%% Returns: {Url, Dict}
+%%%
+%%% Point a browser to the returned Url and login at the Provider.
+%%% Verify the Url you are "returned_to" as:
+%%%
+%%%  verify_signed_keys(ReturnUrl, Dict)
+%%%
+all() ->
+    Dict0 = foldf([in("openid.return_to", "http://www.tornkvist.org/openid"),
+                   in("openid.trust_root", "http://www.tornkvist.org")
+                  ], new()),
+    {ok,Dict1} = discover("www.tornkvist.org", Dict0),
+    all(Dict1).
+
+all(Dict) ->
+    {ok,Dict1} = associate(Dict),
+    Dict2 = compute_K(compute_B(Dict1)),
+    {checkid_setup(Dict2), Dict2}.
+
+
+%%% --------------------------------------------------------------------
+%%% @spec verify_signed_keys( string() , dict() ) -> bool().
+%%%
+%%% @doc Ask the IP if an end user owns the Claimed ID.
+%%%      Returns an URL that the end user should be redirected to.
+%%% @end
+%%% --------------------------------------------------------------------
+-spec verify_signed_keys( string(), dict() ) -> bool().
+    
+verify_signed_keys(Url, Dict0) -> 
+    Qargs = get_query_args(Url),
+    D = orddict:from_list(parseq(Qargs)),
+    Dict = orddict:merge(fun(_,V,_) -> V end, D, Dict0),
+    Signed = out("openid.signed", Dict),
+    Keys = string:tokens(Signed, ","),
+    L = [Key++":"++out("openid."++Key,Dict)++"\n" || Key <- Keys],
+    TokenContents = lists:flatten(L),
+    MacKey = decrypt_mac_key(Dict),
+    MySig  = crypto:sha_mac(MacKey, TokenContents),
+    SrvSig = base64:decode(out("openid.sig",Dict)),
+    try 
+        true = (MySig =:= SrvSig)
+    catch _:_ -> 
+            ?elog("verify_signed_keys: MySig=~p , SrvSig=~p~n", [MySig,SrvSig]),
+            false
+    end.
+
+get_query_args(Url) ->
+    case string:tokens(Url, "?") of
+        [Qargs]   -> Qargs;
+        [_,Qargs] -> Qargs
+    end.
+            
 
 %%% --------------------------------------------------------------------
 %%% @spec checkid_setup( dict() ) -> {ok,string()} | {Type,Error}.
@@ -71,13 +136,17 @@
 -spec checkid_setup( dict() ) -> {ok,string()} | {etype(),error()}.
     
 checkid_setup(Dict) ->
-    Mode             = "checkid_setup",
-    Identity         = claimed_id(Dict),
-    AssocHandle      = out("openid.assoc_handle", Dict),
-    ReturnTo         = "http://www.tornkvist.org/openid", % out("openid.return_to", Dict),
-    TrustRoot        = "http://www.tornkvist.org/", % out("openid.trust_root", Dict),
+    Mode         = "checkid_setup",
+    Identity     = claimed_id(Dict),
+    AssocHandle  = out("openid.assoc_handle", Dict),
+    ReturnTo     = out("openid.return_to", Dict),
+    TrustRoot    = out("openid.trust_root", Dict),
+    Provider     = out("openid.server", Dict),
 
-    {ok, 'TBD: return a URL that the customer shall be redirected to'}.
+    Keys = ["mode","identity","assoc_handle","return_to","trust_root"],
+    L = lists:zip(["openid."++K || K <- Keys],
+                  [Mode,Identity,AssocHandle,ReturnTo,TrustRoot]),
+    {ok, Provider++"?"++urlenc(L)}.
 
 claimed_id(Dict) ->
     try out("openid.delegate", Dict)
@@ -96,6 +165,7 @@ claimed_id(Dict) ->
 -spec associate( dict() ) -> {ok,dict()} | {etype(),error()}.
     
 associate(Dict) ->
+    ?elog("+++ associate, Dict=~p~n",[Dict]),
     Mode             = "associate",
     AssocType        = "HMAC-SHA1",
     SessionType      = "DH-SHA1",
@@ -123,7 +193,7 @@ associate(Dict) ->
     %%ContentType = "text/plain; charset=UTF-8",
     ContentType = content_type(), 
     case http_post(Provider, Hdrs, ContentType, Body) of
-        {ok, {{_,200,_}, Rhdrs, Rbody}} ->
+        {ok, {{_,200,_}, _Rhdrs, Rbody}} ->
             Q = [string:tokens(KV,":") || KV <- string:tokens(Rbody, "\n")],
             {ok, lists:foldl(fun([K,V],D) -> in("openid."++K,V,D) end, 
                              Dict1, Q)};
@@ -135,8 +205,8 @@ assoc_keys() ->
     ["assoc_type", "session_type", "dh_modulus",
      "dh_gen", "dh_consumer_public"].
     
-mk_body(L) ->
-    [K++":"++V++"\n" || {K,V} <- L].
+%mk_body(L) ->
+%    [K++":"++V++"\n" || {K,V} <- L].
     
 
 %    <<_:32,Kbin>> = crypto:mpint(K),
@@ -154,9 +224,12 @@ mk_body(L) ->
 -spec discover( string() ) -> {ok,dict()} | {etype(),error()}.
     
 discover(ClaimedId) when is_list(ClaimedId) ->
+    discover(ClaimedId, new()).
+
+discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
     NormId = http_path_norm(ClaimedId),
+    Dict = in("openid.claimed_id", ClaimedId, Dict0),
     {ok, {_Rc, _Hdrs, Body}} = http_get(NormId),
-    Dict = in("openid.claimed_id", ClaimedId, new()),
     try
         {Xml,_} = xmerl_scan:string(Body),
         L = [?XAttrs(X) || X <- xmerl_xpath:string("//link", Xml)],
@@ -164,7 +237,7 @@ discover(ClaimedId) when is_list(ClaimedId) ->
         {ok, foldf(Fs, Dict)}
     catch
         _Type:_Error ->
-            ?elog("discover xmerl failed ~n", []),
+            %%?elog("discover xmerl failed ~n", []),
             try 
                 A = mochiweb_html:parse(Body),
                 %%?elog("A=~p~n",[A]),
@@ -179,11 +252,9 @@ discover(ClaimedId) when is_list(ClaimedId) ->
     end.
 
 
--spec hvals( list() ) -> dict().
 
 %%% Header values
-hvals(Vs) ->
-    hvals(new(), Vs).
+-spec hvals( dict(), list() ) -> dict().
 
 hvals(S, [{<<"link">>,[{<<"rel">>,R},{<<"href">>,H}],_} | T]) -> 
     hvals(pick(S,R,H), T);
@@ -221,6 +292,11 @@ gelems(_, _, S) -> S.
 
 
 -ifdef(EUNIT).
+
+
+
+
+
 
 gelem_test() ->
     ?assertMatch([{<<"link">>,

@@ -29,10 +29,8 @@
          ,roll/1
          ,unroll/1
          ,decrypt_mac_key/1
-         ,encrypt_mac_key/1
          ,compute_K/1
          ,compute_B/1
-         ,test/0
         ]).
 
 
@@ -106,21 +104,11 @@ unroll(Bin) when is_binary(Bin) ->
     Size = size(Bin),
     crypto:erlint(<<Size:32, Bin/binary>>).
 
-test() ->
-    {ok,Dict} = eopenid_v1:discover("www.tornkvist.org"),
-    {ok,Dict2} = eopenid_v1:associate(Dict),
-    Dict3 = compute_K(compute_B(Dict2)),
-    {Dict3, decrypt_mac_key(Dict3)}.
 
 decrypt_mac_key(Dict) ->
     EncMacKey = base64:decode(out("openid.enc_mac_key",Dict)),
     Kbin = roll(out("K",Dict)),
-    {_,Kaligned} = split_binary(Kbin, size(Kbin)-size(EncMacKey)),
-    crypto:exor(EncMacKey, Kaligned).
-
-encrypt_mac_key(Dict) ->
-    Kb = roll(out("K",Dict)),
-    unroll(crypto:exor(crypto:sha(Kb), Kb)).
+    crypto:exor(EncMacKey, crypto:sha(Kbin)).
 
 compute_K(Dict) ->
     B   = out("B",Dict),
