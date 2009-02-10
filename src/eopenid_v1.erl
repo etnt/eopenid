@@ -28,8 +28,8 @@
          ,urlenc/1
          ,content_type/0
          ,implode/2
-         ,b2c/1
-         ,c2b/1
+         ,roll/1
+         ,unroll/1
         ]).
 
 -include_lib("xmerl/include/xmerl.hrl").
@@ -74,9 +74,9 @@ associate(Dict) ->
     AssocType        = "HMAC-SHA1",
     SessionType      = "DH-SHA1",
     {A,DHa,G,P}      = eopenid_lib:mk_dh(),
-    DH_modulus       = base64:encode_to_string(b2c(P)),
-    DH_gen           = base64:encode_to_string(b2c(G)),
-    DH_consumer_pub  = base64:encode_to_string(b2c(A)),
+    DH_modulus       = base64:encode_to_string(roll(P)),
+    DH_gen           = base64:encode_to_string(roll(G)),
+    DH_consumer_pub  = base64:encode_to_string(roll(A)),
 
     L = lists:zip(["openid."++K || K <- assoc_keys()],
                   [AssocType,SessionType,DH_modulus,DH_gen,DH_consumer_pub]),

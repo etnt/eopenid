@@ -26,8 +26,8 @@
          ,parseq/1
          ,content_type/0
          ,implode/2
-         ,b2c/1
-         ,c2b/1
+         ,roll/1
+         ,unroll/1
          ,decrypt_mac_key/1
          ,encrypt_mac_key/1
          ,verify_mac_key/1
@@ -97,24 +97,23 @@ end_slash(Path) ->
     end.
 
 %%% btwoc() in Spec
-b2c(N) when is_integer(N) ->
-    Bin  = crypto:mpint(N),
-    Size = size(Bin),
-    <<Size:32, Bin/binary>>.
+roll(N) when is_integer(N) ->
+    <<_Size:32, Bin/binary>> = crypto:mpint(N),
+    Bin.
 
 %%% The inverse to btwoc()
-c2b(Bin) when is_binary(Bin) ->
+unroll(Bin) when is_binary(Bin) ->
     Size = size(Bin),
     crypto:erlint(<<Size:32, Bin/binary>>).
 
 
 decrypt_mac_key(Dict) ->
     EncMacKey = out("openid.enc_mac_key",Dict),
-    base64:decode(EncMacKey).
+    unroll(base64:decode(EncMacKey)).
 
 encrypt_mac_key(Dict) ->
-    <<_:32,Kb/binary>> = b2c(out("K",Dict)),
-    crypto:exor(crypto:sha_mac(Kb), Kb).
+    Kb = roll(out("K",Dict)),
+    unroll(crypto:exor(crypto:sha(Kb), Kb)).
 
 verify_mac_key(Dict) ->
     D = compute_k(compute_b(Dict)),
