@@ -14,8 +14,8 @@ according to your setup):
     Dict0 = eopenid_lib:foldf(
               [in("openid.return_to", "http://www.tornkvist.org/openid"),
                in("openid.trust_root", "http://www.tornkvist.org")
-              ], new()),
-    {ok,Dict1} = discover("www.tornkvist.org", Dict0),
+              ], eopenid_lib:new()),
+    {ok,Dict1} = eopenid_v1:discover("www.tornkvist.org", Dict0),
     {Url, Dict2} = eopenid_v1:all(Dict).
 
 
@@ -25,7 +25,7 @@ be used for CHECKID_SETUP.
 Point a browser to the returned Url and login at the Provider.
 Verify the Url you are "returned_to" as:
 
-    verify_signed_keys(ReturnUrl, Dict)  =>  bool()
+    eopenid_v1:verify_signed_keys(ReturnUrl, Dict)  =>  bool()
 
 If you get 'true' returned, then you're authenticated.
 
