@@ -184,34 +184,34 @@ associate(Dict) ->
                                in("g",G)
                                ], Dict), 
                         L),
+    ?elog("+++ Dict1=~p~n",[Dict1]),
 
     Body = urlenc([{"openid.mode",Mode}|L]),
-    %%Body = mk_body([{"openid.mode",Mode}|L]),
-    ?elog("+++ Body=~p~n",[Body]),
+    ?elog("+++ Req-Body=~p~n",[Body]),
     Hdrs = [],
     Provider = out("openid.server", Dict),
-    %%ContentType = "text/plain; charset=UTF-8",
     ContentType = content_type(), 
     case http_post(Provider, Hdrs, ContentType, Body) of
         {ok, {{_,200,_}, _Rhdrs, Rbody}} ->
-            Q = [string:tokens(KV,":") || KV <- string:tokens(Rbody, "\n")],
-            {ok, lists:foldl(fun([K,V],D) -> in("openid."++K,V,D) end, 
+            Q = [tokenize(KV,$:) || KV <- string:tokens(Rbody, "\n")],
+            ?elog("+++ Rhdrs=~p , Repl-Body=~p, Q=~p~n",[_Rhdrs,Rbody,Q]),
+            {ok, lists:foldl(fun({K,V},D) -> in("openid."++K,V,D) end, 
                              Dict1, Q)};
         Else ->
             {error, Else}
     end.
 
+tokenize(String, Separator) ->
+    tokenize(String, Separator, []).
+    
+tokenize([H|T], H, Acc) -> {lists:reverse(Acc), T};
+tokenize([H|T], C, Acc) -> tokenize(T, C, [H|Acc]);
+tokenize([], _, Acc)    -> {lists:reverse(Acc), ""}.
+
 assoc_keys() ->
     ["assoc_type", "session_type", "dh_modulus",
      "dh_gen", "dh_consumer_public"].
     
-%mk_body(L) ->
-%    [K++":"++V++"\n" || {K,V} <- L].
-    
-
-%    <<_:32,Kbin>> = crypto:mpint(K),
-%    crypto:exor
-%    K = out("K",Dict),
 
 %%% --------------------------------------------------------------------
 %%% @spec discover(ClaimedId :: list()) -> {ok,dict()} | {Type,Error}.

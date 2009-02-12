@@ -16,7 +16,7 @@ according to your setup):
                in("openid.trust_root", "http://www.tornkvist.org")
               ], eopenid_lib:new()),
     {ok,Dict1} = eopenid_v1:discover("www.tornkvist.org", Dict0),
-    {Url, Dict2} = eopenid_v1:all(Dict).
+    {{ok, Url}, Dict2} = eopenid_v1:all(Dict1).
 
 
 The above will perform DISCOVER, ASSOCIATE and return the Url to 
