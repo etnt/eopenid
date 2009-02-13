@@ -13,13 +13,13 @@
 
 
 start() ->
-    application:start(inets).
-    application:start(crypto).
+    application:start(inets),
+    application:start(crypto),
     application:start(eopenid).
 
 start(Type) ->
-    application:start(inets).
-    application:start(crypto).
+    application:start(inets),
+    application:start(crypto),
     application:start(inets, Type).
 
 

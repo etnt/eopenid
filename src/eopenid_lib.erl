@@ -1,7 +1,11 @@
 %%%-------------------------------------------------------------------
+%%% Copyright (c) 2008-2009 Torbjorn Tornkvist
+%%% See the (MIT) LICENSE file for licensing information.
+%%%
 %%% Created   :  3 Apr 2008 by Torbjorn Tornkvist <tobbe@tornkvist.org>
 %%% Re-worked :  7 Feb 2009 by Torbjorn Tornkvist <tobbe@tornkvist.org>
 %%% Desc.     :  Implementation of OpenID v1.1 
+%%%
 %%%-------------------------------------------------------------------
 -module(eopenid_lib).
 
@@ -85,8 +89,9 @@ http_post(Url, Hdrs, ContentType, Body) ->
 %%%@doc Parse an nomalize the OpenID path.
 %%%     FIXME: Should be done according to ch.6 in RFC 3986.
 %%%@end
-http_path_norm("http://"++_ = Path) -> end_slash(Path);
-http_path_norm(Path)                -> "http://"++end_slash(Path).
+http_path_norm("http://"++_ = Path)  -> end_slash(Path);
+http_path_norm("https://"++_ = Path) -> end_slash(Path);
+http_path_norm(Path)                 -> "http://"++end_slash(Path).
 
 end_slash(Path) ->
     case lists:reverse(Path) of
@@ -106,9 +111,9 @@ unroll(Bin) when is_binary(Bin) ->
 
 
 decrypt_mac_key(Dict) ->
-    EncMacKey = base64:decode(out("openid.enc_mac_key",Dict)),
+    EncMacKey = base64:decode(out("enc_mac_key",Dict)),
     Kbin = roll(out("K",Dict)),
-    crypto:exor(EncMacKey, crypto:sha(Kbin)).
+    in("mac_key", crypto:exor(EncMacKey, crypto:sha(Kbin)), Dict).
 
 compute_K(Dict) ->
     B   = out("B",Dict),
@@ -118,7 +123,7 @@ compute_K(Dict) ->
     in("K",K,Dict).
 
 compute_B(Dict) ->
-    C = base64:decode(out("openid.dh_server_public",Dict)),
+    C = base64:decode(out("dh_server_public",Dict)),
     Size = size(C),
     in("B", crypto:erlint(<<Size:32,C/binary>>), Dict).
     

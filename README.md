@@ -6,7 +6,7 @@ Requirements: R12B-5 and Mochiweb
 
 Start Erlang as:
 
-    erl -pa ./ebin -pa ~/svn/mochiweb-read-only/ebin -s inets -s crypto
+    erl -pa ./ebin -pa ~/svn/mochiweb-read-only/ebin -s eopenid
     
 At the moment you can try it out as shown below (nb: change the values
 according to your setup):

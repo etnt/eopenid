@@ -1,7 +1,11 @@
 %%%-------------------------------------------------------------------
+%%% Copyright (c) 2008-2009 Torbjorn Tornkvist
+%%% See the (MIT) LICENSE file for licensing information.
+%%%
 %%% Created   :  3 Apr 2008 by Torbjorn Tornkvist <tobbe@tornkvist.org>
 %%% Re-worked :  7 Feb 2009 by Torbjorn Tornkvist <tobbe@tornkvist.org>
 %%% Desc.     :  Implementation of OpenID v1.1 
+%%%
 %%%-------------------------------------------------------------------
 -module(eopenid_v1).
 
@@ -88,8 +92,7 @@ all() ->
 
 all(Dict) ->
     {ok,Dict1} = associate(Dict),
-    Dict2 = compute_K(compute_B(Dict1)),
-    {checkid_setup(Dict2), Dict2}.
+    {checkid_setup(Dict1), Dict1}.
 
 
 %%% --------------------------------------------------------------------
@@ -109,11 +112,11 @@ verify_signed_keys(Url, Dict0) ->
     Keys = string:tokens(Signed, ","),
     L = [Key++":"++out("openid."++Key,Dict)++"\n" || Key <- Keys],
     TokenContents = lists:flatten(L),
-    MacKey = decrypt_mac_key(Dict),
+    MacKey = out("openid.mac_key", Dict),
     MySig  = crypto:sha_mac(MacKey, TokenContents),
     SrvSig = base64:decode(out("openid.sig",Dict)),
     try 
-        true = (MySig =:= SrvSig)
+        true == (MySig =:= SrvSig)
     catch _:_ -> 
             ?elog("verify_signed_keys: MySig=~p , SrvSig=~p~n", [MySig,SrvSig]),
             false
@@ -136,6 +139,7 @@ get_query_args(Url) ->
 -spec checkid_setup( dict() ) -> {ok,string()} | {etype(),error()}.
     
 checkid_setup(Dict) ->
+    ?elog("+++ checkid_setup, Dict=~p~n",[Dict]),
     Mode         = "checkid_setup",
     Identity     = claimed_id(Dict),
     AssocHandle  = out("openid.assoc_handle", Dict),
@@ -165,7 +169,16 @@ claimed_id(Dict) ->
 -spec associate( dict() ) -> {ok,dict()} | {etype(),error()}.
     
 associate(Dict) ->
-    ?elog("+++ associate, Dict=~p~n",[Dict]),
+    try 
+        Provider = out("openid.server", Dict),
+        {ok,Adict} = eopenid_srv:get_assoc_handle(Provider),
+        ?elog("+++ associate, Got Adict=~p~n",[Adict]),
+        {ok, in("openid.assoc_handle", out("assoc_handle", Adict), Dict)}
+    catch
+        _:_ -> do_associate(Dict)
+    end.
+
+do_associate(Dict) ->
     Mode             = "associate",
     AssocType        = "HMAC-SHA1",
     SessionType      = "DH-SHA1",
@@ -173,33 +186,48 @@ associate(Dict) ->
     DH_modulus       = base64:encode_to_string(roll(P)),
     DH_gen           = base64:encode_to_string(roll(G)),
     DH_consumer_pub  = base64:encode_to_string(roll(A)),
+    Provider         = out("openid.server", Dict),
 
+    %% Create the keys to be sent in the request
     L = lists:zip(["openid."++K || K <- assoc_keys()],
                   [AssocType,SessionType,DH_modulus,DH_gen,DH_consumer_pub]),
 
-    Dict1 = lists:foldl(fun({K,V},D) -> in(K,V,D) end, 
+    %% Create the Association Handle dict, to be stored for future use.
+    Adict = lists:foldl(fun({K,V},D) -> in(K,V,D) end, 
                         foldf([in("a",DHa),
                                in("A",A),
                                in("p",P),
                                in("g",G)
-                               ], Dict), 
+                               ], new()), 
                         L),
-    ?elog("+++ Dict1=~p~n",[Dict1]),
 
     Body = urlenc([{"openid.mode",Mode}|L]),
-    ?elog("+++ Req-Body=~p~n",[Body]),
+    associate_request(Adict, Body, Dict, Provider).
+
+associate_request(Adict, Body, Dict, Provider) ->
     Hdrs = [],
-    Provider = out("openid.server", Dict),
     ContentType = content_type(), 
     case http_post(Provider, Hdrs, ContentType, Body) of
         {ok, {{_,200,_}, _Rhdrs, Rbody}} ->
             Q = [tokenize(KV,$:) || KV <- string:tokens(Rbody, "\n")],
             ?elog("+++ Rhdrs=~p , Repl-Body=~p, Q=~p~n",[_Rhdrs,Rbody,Q]),
-            {ok, lists:foldl(fun({K,V},D) -> in("openid."++K,V,D) end, 
-                             Dict1, Q)};
+            Adict1 = lists:foldl(fun({K,V},D) -> 
+                                         in(K,V,D) 
+                                 end, 
+                                 Adict, Q),
+            Adict2 = decrypt_mac_key(compute_K(compute_B(Adict1))),
+            eopenid_srv:put_assoc_handle(Provider, Adict2),
+            {ok,in("openid.assoc_handle", 
+                   out("assoc_handle", Adict2), 
+                   in("openid.mac_key", 
+                      out("mac_key", Adict2), 
+                      Dict))};
+
         Else ->
+            ?elog("+++ http_post not ok: ~p~n",[Else]),
             {error, Else}
     end.
+
 
 tokenize(String, Separator) ->
     tokenize(String, Separator, []).
@@ -237,10 +265,8 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
         {ok, foldf(Fs, Dict)}
     catch
         _Type:_Error ->
-            %%?elog("discover xmerl failed ~n", []),
             try 
                 A = mochiweb_html:parse(Body),
-                %%?elog("A=~p~n",[A]),
                 {ok, hvals(Dict, gelems([<<"html">>,<<"head">>,<<"link">>], A))}
             catch
                 Type2:Error2 ->
