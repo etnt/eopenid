@@ -20,7 +20,8 @@ according to your setup):
 
 
 The above will perform DISCOVER, ASSOCIATE and return the Url to 
-be used for CHECKID_SETUP.
+be used for CHECKID_SETUP. Note that an associate request is now
+only made the first time eopenid see a new Provider.
 
 Point a browser to the returned Url and login at the Provider.
 Verify the Url you are "returned_to" as:
@@ -33,7 +34,7 @@ If you get 'true' returned, then you're authenticated.
 TODO:
 
 * Dumb mode.
-* Server for holding the security association.
+* Make sure to honor the expiry time of the assoc_handle.
 * Cleanup the code.
 
 
