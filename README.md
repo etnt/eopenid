@@ -25,12 +25,13 @@ code (wf.erl):
     wf:session(eopenid_dict, Dict2),
     wf:redirect(Url)
 
-The above will perform DISCOVER, ASSOCIATE and return the Url to 
-be used for CHECKID_SETUP. Note that an associate request is now
-only made the first time eopenid see a new Provider. The Nitrogen
-framework will send a redirect to the client, who will login
-to its Provider and (again) being redirectd, this time to the 
-*return_to* address.
+The above will perform DISCOVER, ASSOCIATE, CHECKID_SETUP and 
+return the Url to be used for redirecting the client. 
+Note that an associate request only is made the first time eopenid 
+see a new Provider (the Association is cached the very first time).
+The Nitrogen framework will in this example send a redirect to the 
+client, who will login to its Provider and (again) will be redirected, 
+this time to the *return_to* address.
 
 At the *return_to* address we have the following code which
 verifies the signed keys that the Provider sent along with the
