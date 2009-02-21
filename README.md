@@ -29,13 +29,15 @@ The above will perform DISCOVER, ASSOCIATE and return the Url to
 be used for CHECKID_SETUP. Note that an associate request is now
 only made the first time eopenid see a new Provider. The Nitrogen
 framework will send a redirect to the client, who will login
-to its Provider and (again) being returned to the *return_to*
-address.
+to its Provider and (again) being redirectd, this time to the 
+*return_to* address.
 
 At the *return_to* address we have the following code which
 verifies the signed keys that the Provider sent along with the
 redirect in the *returned_to* Url:
 
+    Dict = wf:session(eopenid_dict),
+    RawPath = wf_platform:get_raw_path(),
     %% assertion
     true = eopenid_v1:verify_signed_keys(RawPath, Dict),
     ClaimedId = eopenid_lib:out("openid.claimed_id", Dict),
