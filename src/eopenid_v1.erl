@@ -45,6 +45,7 @@
          ,decrypt_mac_key/1
         ]).
 
+-include("eopenid_debug.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
 -ifdef(TEST).
@@ -65,8 +66,6 @@
              ?xelem(_,As,_) = X,
              [{N,V} || ?xattr(N,V) <- As] end)()).
 
--define(elog(Fmt,Args), 
-        error_logger:format("~p(~p): "++Fmt, [?MODULE,?LINE|Args])).
 
 -type( dict() :: list() ).
 -type( etype() :: error | exit | throw ).
@@ -118,7 +117,7 @@ verify_signed_keys(Url, Dict0) ->
     try 
         true == (MySig =:= SrvSig)
     catch _:_ -> 
-            ?elog("verify_signed_keys: MySig=~p , SrvSig=~p~n", [MySig,SrvSig]),
+            ?edbg("verify_signed_keys: MySig=~p , SrvSig=~p~n", [MySig,SrvSig]),
             false
     end.
 
@@ -139,7 +138,7 @@ get_query_args(Url) ->
 -spec checkid_setup( dict() ) -> {ok,string()} | {etype(),error()}.
     
 checkid_setup(Dict) ->
-    ?elog("+++ checkid_setup, Dict=~p~n",[Dict]),
+    ?edbg("+++ checkid_setup, Dict=~p~n",[Dict]),
     Mode         = "checkid_setup",
     Identity     = claimed_id(Dict),
     AssocHandle  = out("openid.assoc_handle", Dict),
@@ -171,8 +170,8 @@ claimed_id(Dict) ->
 associate(Dict) ->
     try 
         Provider = out("openid.server", Dict),
-        {ok,Adict} = eopenid_srv:get_assoc_handle(Provider),
-        ?elog("+++ associate, Got Adict=~p~n",[Adict]),
+        {ok,Adict} = eopenid_srv:get_assoc_dict(Provider),
+        ?edbg("+++ associate, Got Adict=~p~n",[Adict]),
         {ok, in("openid.assoc_handle", out("assoc_handle", Adict), Dict)}
     catch
         _:_ -> do_associate(Dict)
@@ -210,13 +209,13 @@ associate_request(Adict, Body, Dict, Provider) ->
     case http_post(Provider, Hdrs, ContentType, Body) of
         {ok, {{_,200,_}, _Rhdrs, Rbody}} ->
             Q = [tokenize(KV,$:) || KV <- string:tokens(Rbody, "\n")],
-            ?elog("+++ Rhdrs=~p , Repl-Body=~p, Q=~p~n",[_Rhdrs,Rbody,Q]),
+            ?edbg("+++ Rhdrs=~p , Repl-Body=~p, Q=~p~n",[_Rhdrs,Rbody,Q]),
             Adict1 = lists:foldl(fun({K,V},D) -> 
                                          in(K,V,D) 
                                  end, 
                                  Adict, Q),
             Adict2 = decrypt_mac_key(compute_K(compute_B(Adict1))),
-            eopenid_srv:put_assoc_handle(Provider, Adict2),
+            eopenid_srv:put_assoc_dict(Provider, Adict2),
             {ok,in("openid.assoc_handle", 
                    out("assoc_handle", Adict2), 
                    in("openid.mac_key", 
@@ -224,7 +223,7 @@ associate_request(Adict, Body, Dict, Provider) ->
                       Dict))};
 
         Else ->
-            ?elog("+++ http_post not ok: ~p~n",[Else]),
+            ?edbg("+++ http_post not ok: ~p~n",[Else]),
             {error, Else}
     end.
 
@@ -271,7 +270,7 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
             catch
                 Type2:Error2 ->
                     %% FIXME try doing the parsing in some other way
-                    ?elog("discover failed: ~p, Body=~p~n",
+                    ?edbg("discover failed: ~p, Body=~p~n",
                           [erlang:get_stacktrace(),Body]),
                     {Type2, Error2}
             end

@@ -1,6 +1,6 @@
 This is an implementation of OpenID version 1.1.
 
-(NB: IT IS NOT FINISHED YET AND STILL VERY ROUGH!)
+(NB: IT DOES NOT (YET) IMPLEMENT THE DUMB MODE!)
 
 Requirements: R12B-5 and Mochiweb
 
@@ -51,7 +51,6 @@ Finally, the authenticated user is redirected to the protected page.
 TODO:
 
 * Dumb mode.
-* Make sure to honor the expiry time of the assoc_handle.
 * Cleanup the code.
 
 

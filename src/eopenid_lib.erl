@@ -21,6 +21,7 @@
          ,add/3
          ,b2l/1
          ,i2l/1
+         ,l2i/1
          ,gen_DHa/0
          ,gen_DHb/0
          ,gen_DHp/0
@@ -35,6 +36,7 @@
          ,decrypt_mac_key/1
          ,compute_K/1
          ,compute_B/1
+         ,gnow/0
         ]).
 
 
@@ -136,6 +138,9 @@ b2l(L) when is_list(L)   -> L.
 i2l(I) when is_integer(I) -> integer_to_list(I);
 i2l(L) when is_list(L)    -> L.
 
+l2i(L) when is_list(L)    -> list_to_integer(L);
+l2i(I) when is_integer(I) -> I.
+
 urlenc(X) -> mochiweb_util:urlencode(X).
 parseq(X) -> mochiweb_util:parse_qs(X).
 
@@ -196,3 +201,6 @@ p() ->
 
 implode(Data, Seperator) when is_list(Data) andalso is_list(Seperator) ->
     lists:foldr(fun(X,[]) -> X; (X,Acc) -> X++Seperator++Acc end, "", Data).
+
+gnow() ->
+    calendar:datetime_to_gregorian_seconds(calendar:local_time()).
