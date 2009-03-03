@@ -22,10 +22,10 @@
          ,b2l/1
          ,i2l/1
          ,l2i/1
-         ,gen_DHa/0
-         ,gen_DHb/0
-         ,gen_DHp/0
-         ,gen_DHg/0
+         %%,gen_DHa/0
+         %%,gen_DHb/0
+         %%,gen_DHp/0
+         %%,gen_DHg/0
          ,mk_dh/0
          ,urlenc/1
          ,parseq/1
@@ -38,6 +38,12 @@
          ,compute_B/1
          ,gnow/0
         ]).
+
+-ignore_xref([{http_get,2}
+              ,{add,3}
+              ,{implode,2}
+              ,{unroll,1}
+             ]).
 
 
 %%%
@@ -173,8 +179,7 @@ gen_DHg() -> 5.
 
 mk_dh() ->
     G = gen_DHg(),
-    %%P = gen_DHp(),
-    P = p(),
+    P = gen_DHp(),
     DHa = gen_DHa(),
     A = crypto:mod_exp(G,DHa,P),
     {A,DHa,G,P}.

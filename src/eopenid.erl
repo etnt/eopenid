@@ -11,6 +11,7 @@
 
 -export([start/0, start/1, stop/0]).
 
+-ignore_xref([{start,0},{start,1},{stop,0}]).
 
 start() ->
     application:start(inets),
@@ -20,7 +21,7 @@ start() ->
 start(Type) ->
     application:start(inets),
     application:start(crypto),
-    application:start(inets, Type).
+    application:start(eopenid, Type).
 
 
 stop() ->

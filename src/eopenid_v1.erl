@@ -16,6 +16,8 @@
          ,verify_signed_keys/2
         ]).
 
+-ignore_xref([{discover,1}]).
+
 -ifdef(TEST).
 -export([t/1
          ,all/0
