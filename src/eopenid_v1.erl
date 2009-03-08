@@ -47,6 +47,7 @@
          ,decrypt_mac_key/1
         ]).
 
+-include("eopenid_typespecs.hrl").
 -include("eopenid_debug.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
 
@@ -68,10 +69,6 @@
              ?xelem(_,As,_) = X,
              [{N,V} || ?xattr(N,V) <- As] end)()).
 
-
--type( dict() :: list() ).
--type( etype() :: error | exit | throw ).
--type( error() :: any() ).
 
 %%%
 %%% --- TEST ---
