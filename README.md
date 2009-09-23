@@ -7,6 +7,9 @@ Requirements: R12B-5 and Mochiweb
 Start Erlang as:
 
     erl -pa ./ebin -pa ~/svn/mochiweb-read-only/ebin -s eopenid
+
+NB: MAKE SURE YOU ACTUALLY START eopenid AS ABOVE, OR CALL 
+application:start(eopenid) ELSEWHERE IN YOUR STARTUP CODE!!
     
 At the moment you can try it out as shown below (nb: change the values
 according to your setup). Also, this example is using some Nitrogen
