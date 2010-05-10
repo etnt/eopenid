@@ -267,11 +267,17 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
                 A = mochiweb_html:parse(Body),
                 {ok, hvals(Dict, gelems([<<"html">>,<<"head">>,<<"link">>], A))}
             catch
-                Type2:Error2 ->
-                    %% FIXME try doing the parsing in some other way
-                    ?edbg("discover failed: ~p, Body=~p~n",
-                          [erlang:get_stacktrace(),Body]),
-                    {Type2, Error2}
+                _Type2:_Error2 ->
+                    try 
+                        Y = yaws_html:h2e(Body),
+                        {ok, hvals(Dict, gelems([ehtml,html,head,link], Y))}
+                    catch
+                        Type3:Error3 ->
+                            %% FIXME try doing the parsing in some other way
+                            ?edbg("discover failed: ~p, Body=~p~n",
+                                  [erlang:get_stacktrace(),Body]),
+                            {Type3, Error3}
+                    end
             end
     end.
 
@@ -280,7 +286,9 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
 %%% Header values
 -spec hvals( dict(), list() ) -> dict().
 
-hvals(S, [{<<"link">>,[{<<"rel">>,R},{<<"href">>,H}],_} | T]) -> 
+hvals(S, [{<<"link">>,[{<<"rel">>,R},{<<"href">>,H}],_} | T]) -> % Mochiweb
+    hvals(pick(S,R,H), T);
+hvals(S, [{link,[{rel,R},{href,H}|_]} | T]) -> % Yaws
     hvals(pick(S,R,H), T);
 hvals(S, [_|T]) -> 
     hvals(S, T);
@@ -289,6 +297,8 @@ hvals(S, []) ->
 
 pick(S, <<"openid.server">>=K, V)   -> in(b2l(K), b2l(V), S);
 pick(S, <<"openid.delegate">>=K, V) -> in(b2l(K), b2l(V), S);
+pick(S, "openid.server"=K, V)       -> in(K, V, S);
+pick(S, "openid.delegate"=K, V)     -> in(K, V, S);
 pick(S, _, _)                       -> S.
     
 
@@ -303,10 +313,14 @@ gelems(Path, Tree) ->
 gelems([E], L, S)             -> 
     lists:foldl(fun({X,_,_}=N, Acc) when X == E ->
                         ordsets:add_element(N,Acc);
+                   ({X,_}=N, Acc) when X == E ->
+                        ordsets:add_element(N,Acc);
                    (_, Acc) -> Acc
                 end, S, L);
 gelems([E|T], L, S) when is_list(L) ->
     lists:foldl(fun({X,_,Xl}, Acc) when X == E ->
+                        gelems(T, Xl, Acc);
+                   ({X,Xl}, Acc) when X == E ->
                         gelems(T, Xl, Acc);
                    (_, Acc) -> Acc
                 end, S, L);
