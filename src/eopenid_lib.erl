@@ -157,7 +157,13 @@ urlenc(X) ->
 parseq(X) -> 
     try mochiweb_util:parse_qs(X)
     catch _:_ -> 
-            [list_to_tuple(string:tokens(Q,"=")) || Q <- string:tokens(X,"&")]
+            Filter = fun(S,Acc) -> 
+                             case string:tokens(S,"=") of
+                                 [K,V] -> [{K,yaws_api:url_decode(V)}|Acc];
+                                 _     -> Acc
+                             end
+                     end,
+            lists:foldr(Filter, [], string:tokens(X,"&"))
     end.
             
 
