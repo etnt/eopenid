@@ -147,8 +147,19 @@ i2l(L) when is_list(L)    -> L.
 l2i(L) when is_list(L)    -> list_to_integer(L);
 l2i(I) when is_integer(I) -> I.
 
-urlenc(X) -> mochiweb_util:urlencode(X).
-parseq(X) -> mochiweb_util:parse_qs(X).
+urlenc(X) -> 
+    try mochiweb_util:urlencode(X)
+    catch _:_ -> 
+            S = [K++"="++yaws_api:url_encode(V) || {K,V} <- X],
+            string:join(S,"&") 
+    end.
+            
+parseq(X) -> 
+    try mochiweb_util:parse_qs(X)
+    catch _:_ -> 
+            [list_to_tuple(string:tokens(Q,"=")) || Q <- string:tokens(X,"&")]
+    end.
+            
 
 content_type() -> 
     "application/x-www-form-urlencoded; charset=UTF-8".
