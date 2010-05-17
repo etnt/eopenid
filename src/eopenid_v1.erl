@@ -263,20 +263,27 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
         {ok, foldf(Fs, Dict)}
     catch
         _Type:_Error ->
-            try 
-                A = mochiweb_html:parse(Body),
-                {ok, hvals(Dict, gelems([<<"html">>,<<"head">>,<<"link">>], A))}
+            try
+                Fs2 = [in(K,V) || {tag,"link",[{"rel","openid"++_=K},{"href",V}|_]} 
+                                      <- trane:sax(Body,fun(T,A)-> A++[T] end, [])],
+                {ok, foldf(Fs2, Dict)}
             catch
-                _Type2:_Error2 ->
+                _:_ ->
                     try 
-                        Y = yaws_html:h2e(Body),
-                        {ok, hvals(Dict, gelems([ehtml,html,head,link], Y))}
+                        A = mochiweb_html:parse(Body),
+                        {ok, hvals(Dict, gelems([<<"html">>,<<"head">>,<<"link">>], A))}
                     catch
-                        Type3:Error3 ->
-                            %% FIXME try doing the parsing in some other way
-                            ?edbg("discover failed: ~p, Body=~p~n",
-                                  [erlang:get_stacktrace(),Body]),
-                            {Type3, Error3}
+                        _Type2:_Error2 ->
+                            try 
+                                Y = yaws_html:h2e(Body),
+                                {ok, hvals(Dict, gelems([ehtml,html,head,link], Y))}
+                            catch
+                                Type3:Error3 ->
+                                    %% FIXME try doing the parsing in some other way
+                                    ?edbg("discover failed: ~p, Body=~p~n",
+                                          [erlang:get_stacktrace(),Body]),
+                                    {Type3, Error3}
+                            end
                     end
             end
     end.

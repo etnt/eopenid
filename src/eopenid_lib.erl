@@ -150,16 +150,24 @@ l2i(I) when is_integer(I) -> I.
 urlenc(X) -> 
     try mochiweb_util:urlencode(X)
     catch _:_ -> 
-            S = [K++"="++yaws_api:url_encode(V) || {K,V} <- X],
+            S = [K++"="++url_encode(V) || {K,V} <- X],
             string:join(S,"&") 
     end.
+
+url_encode(X) ->
+    try yaws_api:url_encode(X)
+    catch _:_ -> wf:url_encode(X) end.
+            
+url_decode(X) ->
+    try yaws_api:url_decode(X)
+    catch _:_ -> wf:url_decode(X) end.
             
 parseq(X) -> 
     try mochiweb_util:parse_qs(X)
     catch _:_ -> 
             Filter = fun(S,Acc) -> 
                              case string:tokens(S,"=") of
-                                 [K,V] -> [{K,yaws_api:url_decode(V)}|Acc];
+                                 [K,V] -> [{K,url_decode(V)}|Acc];
                                  _     -> Acc
                              end
                      end,
