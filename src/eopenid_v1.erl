@@ -317,13 +317,17 @@ pick(S, _, _)                       -> S.
 gelems(Path, Tree) ->
     ordsets:to_list(gelems(Path, [Tree], ordsets:new())).
 
-gelems([E], L, S)             -> 
-    lists:foldl(fun({X,_,_}=N, Acc) when X == E ->
-                        ordsets:add_element(N,Acc);
-                   ({X,_}=N, Acc) when X == E ->
-                        ordsets:add_element(N,Acc);
-                   (_, Acc) -> Acc
-                end, S, L);
+gelem_add(E, {X,_,_}=N, Acc) when X == E ->
+    ordsets:add_element(N,Acc);
+gelem_add(E, {X,_}=N, Acc) when X == E ->
+    ordsets:add_element(N,Acc);
+gelem_add(E, _, Acc) -> Acc.
+
+gelems([E], L, S) when is_list(L) -> 
+    F = fun(N, Acc) -> gelem_add(E, N, Acc) end,
+    lists:foldl(F, S, L);
+gelems([E], I, S) ->
+    gelem_add(E, I, S);
 gelems([E|T], L, S) when is_list(L) ->
     lists:foldl(fun({X,_,Xl}, Acc) when X == E ->
                         gelems(T, Xl, Acc);
