@@ -73,9 +73,14 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
 discover_xrds(Body) ->
     {Xml,_} = xmerl_scan:string(Body),
     Services = xmerl_xpath:string("//Service", Xml),
-    [parse(S) || S <- Services].
+    io:format("Services: ~p~n",[Services]),
+    [{parse_attributes(S),parse_body(S)} || S <- Services].
 
-parse(?xelem(_,_,Exports)) ->
+parse_attributes(?xelem(_,Attributes,_)) ->
+    [{Name,Val} || 
+        ?xattr(Name,Val)       <- Attributes].
+
+parse_body(?xelem(_,_,Exports)) ->
     [{Tag,Val} || 
         ?xelem(_,_,Products) <- Exports,
         ?xtxt(Tag,Val)       <- Products].

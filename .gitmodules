@@ -1,0 +1,3 @@
+[submodule "dep/trane"]
+	path = dep/trane
+	url = git://github.com/massemanet/trane.git

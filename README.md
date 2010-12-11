@@ -2,7 +2,8 @@ This is an implementation of OpenID version 1.1.
 
 (NB: IT DOES NOT (YET) IMPLEMENT THE DUMB MODE!)
 
-Requirements: R12B-5 and Mochiweb
+Requirements: at least R12B-5 
+  it can also make use of Yaws/Mochiweb/trane if available)
 
 Start Erlang as:
 
