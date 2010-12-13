@@ -11,6 +11,7 @@
 
 -export([discover/1
          ,discover/2
+         ,normalize/1
         ]).
 
 -ignore_xref([{discover,1}]).
@@ -27,6 +28,7 @@
 -include("eopenid_typespecs.hrl").
 -include("eopenid_debug.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 
 %%% --------------------------------------------------------------------
@@ -73,8 +75,10 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
 discover_xrds(Body) ->
     {Xml,_} = xmerl_scan:string(Body),
     Services = xmerl_xpath:string("//Service", Xml),
-    io:format("Services: ~p~n",[Services]),
-    [{parse_attributes(S),parse_body(S)} || S <- Services].
+    Sort = fun({A1,B1}=A,{A2,B2}=B) ->
+                   lkup(priority,A1) =< lkup(priority,A2)
+           end,
+    lists:sort(Sort,[{parse_attributes(S),parse_body(S)} || S <- Services]).
 
 parse_attributes(?xelem(_,Attributes,_)) ->
     [{Name,Val} || 
@@ -88,4 +92,77 @@ parse_body(?xelem(_,_,Exports)) ->
 discover_html(Body) ->
     tbd.
 
+lkup(K,L) ->
+    lists:keyfind(K,1,L).
 
+
+
+%%%
+%%% Normalize the Claimed ID according to 7.2 of:
+%%% http://openid.net/specs/openid-authentication-2_0.html
+%%%
+-define(is_xri_char(C), (C == $= orelse
+                         C == $@ orelse
+                         C == $+ orelse
+                         C == $$ orelse
+                         C == $! orelse
+                         C == $( )).
+
+normalize("xri://"++[H|T]=Rest) when ?is_xri_char(H) ->
+    [H|T];
+normalize("http://"++Rest) ->
+    "http://"++http_normalize(Rest);
+normalize("https://"++Rest) ->
+    "https://"++http_normalize(Rest);
+normalize([X|_]=Rest) when ?is_xri_char(X) ->
+    Rest;
+normalize(Id) ->
+    "http://"++http_normalize(Id).
+    
+
+http_normalize(Str0) ->
+    [Str|_] = string:tokens(Str0, "#"),
+    case string:tokens(Str,"/") of
+        [X] -> X++"/";
+        _   -> Str
+    end.
+    
+
+-ifdef(EUNIT).
+
+%%%
+%%% See:
+%%% http://openid.net/specs/openid-authentication-2_0.html#normalization_example
+%%%
+normalize_test_() ->
+    [
+     % A URI with a missing scheme is normalized to a http URI
+     ?_assertMatch("http://example.com/", normalize("example.com"))
+
+     % An empty path component is normalized to a slash
+     ,?_assertMatch("http://example.com/", normalize("http://example.com"))
+
+     % https URIs remain https URIs
+     ,?_assertMatch("https://example.com/", normalize("https://example.com/"))
+
+     % No trailing slash is added to non-empty path components
+     ,?_assertMatch("http://example.com/user", normalize("http://example.com/user"))
+
+     % Trailing slashes are preserved on non-empty path components
+     ,?_assertMatch("http://example.com/user/", normalize("http://example.com/user/"))
+
+     % Trailing slashes are preserved when the path is empty
+     ,?_assertMatch("http://example.com/", normalize("http://example.com/"))
+
+     % Normalized XRIs start with a global context symbol
+     ,?_assertMatch("=example", normalize("=example"))
+
+     % Normalized XRIs start with a global context symbol
+     ,?_assertMatch("=example", normalize("xri://=example"))
+
+     % Fragments should be removed
+     ,?_assertMatch("http://openid.net/specs/openid-authentication-2_0.html",
+                    normalize("http://openid.net/specs/openid-authentication-2_0.html#normalization_example"))
+].
+
+-endif.
