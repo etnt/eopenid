@@ -11,6 +11,7 @@
 
 -export([discover/1
          ,discover/2
+	 ,discover/3
          ,associate/1
          ,checkid_setup/1
          ,verify_signed_keys/2
@@ -252,31 +253,30 @@ assoc_keys() ->
 discover(ClaimedId) when is_list(ClaimedId) ->
     discover(ClaimedId, new()).
 
-discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
+discover(ClaimedId, Dict) ->
+    discover(ClaimedId, Dict, all).
+
+discover(ClaimedId, Dict0, Parser) when is_list(ClaimedId) ->
     NormId = http_path_norm(ClaimedId),
     Dict = in("openid.claimed_id", ClaimedId, Dict0),
     {ok, {_Rc, _Hdrs, Body}} = http_get(NormId),
+    parse_body(Body, Dict, Parser).
+
+parse_body(Body, Dict, all) ->
     try
-        {Xml,_} = xmerl_scan:string(Body),
-        L = [?XAttrs(X) || X <- xmerl_xpath:string("//link", Xml)],
-        Fs = [in(K,V) || [{rel,K},{href,V}] <- L],
-        {ok, foldf(Fs, Dict)}
+	xmerl_parse_body(Body, Dict)
     catch
         _Type:_Error ->
             try
-                Fs2 = [in(K,V) || {tag,"link",[{"rel","openid"++_=K},{"href",V}|_]} 
-                                      <- trane:sax(Body,fun(T,A)-> A++[T] end, [])],
-                {ok, foldf(Fs2, Dict)}
+		trane_parse_body(Body, Dict)
             catch
                 _:_ ->
-                    try 
-                        A = mochiweb_html:parse(Body),
-                        {ok, hvals(Dict, gelems([<<"html">>,<<"head">>,<<"link">>], A))}
+                    try
+			mochiweb_parse_body(Body, Dict)
                     catch
                         _Type2:_Error2 ->
-                            try 
-                                Y = yaws_html:h2e(Body),
-                                {ok, hvals(Dict, gelems([ehtml,html,head,link], Y))}
+                            try
+				yaws_parse_body(Body, Dict)
                             catch
                                 Type3:Error3 ->
                                     %% FIXME try doing the parsing in some other way
@@ -286,9 +286,62 @@ discover(ClaimedId, Dict0) when is_list(ClaimedId) ->
                             end
                     end
             end
+    end;
+parse_body(Body, Dict, mochiweb) ->
+    try
+	mochiweb_parse_body(Body, Dict)
+    catch
+	Type3:Error3 ->
+	    ?edbg("discover failed: ~p, Body=~p~n",
+		  [erlang:get_stacktrace(),Body]),
+	    {Type3, Error3}
+    end;
+parse_body(Body, Dict, yaws) ->
+    try
+	yaws_parse_body(Body, Dict)
+    catch
+	Type3:Error3 ->
+	    ?edbg("discover failed: ~p, Body=~p~n",
+		  [erlang:get_stacktrace(),Body]),
+	    {Type3, Error3}
+    end;
+parse_body(Body, Dict, trane) ->
+    try
+	trane_parse_body(Body, Dict)
+    catch
+	Type3:Error3 ->
+	    ?edbg("discover failed: ~p, Body=~p~n",
+		  [erlang:get_stacktrace(),Body]),
+	    {Type3, Error3}
+    end;
+parse_body(Body, Dict, xmerl) ->
+    try
+	xmerl_parse_body(Body, Dict)
+    catch
+	Type3:Error3 ->
+	    ?edbg("discover failed: ~p, Body=~p~n",
+		  [erlang:get_stacktrace(),Body]),
+	    {Type3, Error3}
     end.
 
+xmerl_parse_body(Body, Dict) ->
+    {Xml,_} = xmerl_scan:string(Body),
+    L = [?XAttrs(X) || X <- xmerl_xpath:string("//link", Xml)],
+    Fs = [in(K,V) || [{rel,K},{href,V}] <- L],
+    {ok, foldf(Fs, Dict)}.
 
+trane_parse_body(Body, Dict) ->
+    Fs2 = [in(K,V) || {tag,"link",[{"rel","openid"++_=K},{"href",V}|_]}
+			  <- trane:sax(Body,fun(T,A)-> A++[T] end, [])],
+    {ok, foldf(Fs2, Dict)}.
+
+mochiweb_parse_body(Body, Dict) ->
+    A = mochiweb_html:parse(Body),
+    {ok, hvals(Dict, gelems([<<"html">>,<<"head">>,<<"link">>], A))}.
+
+yaws_parse_body(Body, Dict) ->
+    Y = yaws_html:h2e(Body),
+    {ok, hvals(Dict, gelems([ehtml,html,head,link], Y))}.
 
 %%% Header values
 -spec hvals( dict(), list() ) -> dict().
